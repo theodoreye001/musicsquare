@@ -256,11 +256,22 @@
     @media (max-width: 860px) {
       .layout {
         grid-template-columns: 1fr;
-        grid-template-rows: auto auto auto;
+        grid-template-rows: auto 1fr auto;
         grid-template-areas:
-          "player"
           "search"
+          "player"
           "playlist";
+      }
+    }
+    @media (max-width: 640px) {
+      .search-panel.mobile-collapsed .source-row,
+      .search-panel.mobile-collapsed .limit-row,
+      .search-panel.mobile-collapsed .search-stats,
+      .search-panel.mobile-collapsed .search-results-mini {
+        display: none;
+      }
+      .playlist-panel.mobile-hidden {
+        display: none;
       }
     }
 
@@ -1407,6 +1418,7 @@
               </div>
               <div class="player-actions">
                 <div class="player-btn-row">
+                  <button id="playlist-toggle-btn" class="btn btn-secondary btn-icon ripple-target" title="显示/隐藏播放列表" style="display:none;">📋</button>
                   <button id="fav-btn" class="btn btn-secondary btn-icon ripple-target" title="收藏 (F)">❤</button>
                   <button id="download-btn" class="btn btn-secondary btn-icon ripple-target" title="下载">⬇</button>
                 </div>
@@ -1751,6 +1763,10 @@
       } else {
         document.title = t('appTitle');
       }
+    }
+
+    function isMobile() {
+      return window.innerWidth <= 640;
     }
 
     function setupMediaSession() {
@@ -2335,6 +2351,18 @@
       dom.favBtn.classList.toggle('btn-fav-active',active);
     }
 
+    function toggleMobileSearch(collapsed) {
+      if (!isMobile()) return;
+      const panel = document.querySelector('.search-panel');
+      if (collapsed) panel.classList.add('mobile-collapsed');
+      else panel.classList.remove('mobile-collapsed');
+    }
+
+    function togglePlaylist() {
+      const panel = document.querySelector('.playlist-panel');
+      panel.classList.toggle('mobile-hidden');
+    }
+
     async function playTrack(track,context){
       if(!track)return;
       state.currentTrack=track;
@@ -2384,6 +2412,10 @@
       state.lyricLines = track.lrc ? parseLRC(track.lrc) : [];
       renderLyrics();
       updateMainFavButton();
+
+      if (isMobile()) {
+        toggleMobileSearch(true);
+      }
 
       try{
         await ensureTrackDetails(track);
@@ -2840,6 +2872,9 @@
       dom.shortcutToggleBtn=$('shortcut-toggle-btn');
       dom.shortcutModal=$('shortcut-modal');
       dom.shortcutCloseBtn=$('shortcut-close');
+
+      dom.playlistToggleBtn=$('playlist-toggle-btn');
+      if (isMobile()) dom.playlistToggleBtn.style.display = 'inline-flex';
     }
 
     function setPlaymodeUI(){
@@ -2864,6 +2899,10 @@
           searchAllSources(true);
         }
       });
+      dom.searchInput.addEventListener('focus', () => {
+        if (isMobile()) toggleMobileSearch(false);
+      });
+      dom.playlistToggleBtn.addEventListener('click', togglePlaylist);
 
       document.querySelectorAll('.source-chip input').forEach(cb=>{
         cb.addEventListener('change',()=>{state.enabledSources[cb.dataset.source]=cb.checked;});
@@ -3045,6 +3084,9 @@
       dom.audio.volume=parseFloat(dom.volumeSlider.value);
       setupMediaSession();
       updateDocumentTitle();
+      if (isMobile()) {
+        document.querySelector('.playlist-panel').classList.add('mobile-hidden');
+      }
     }
 
     document.addEventListener('DOMContentLoaded',init);
