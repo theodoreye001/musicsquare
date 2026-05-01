@@ -1346,7 +1346,7 @@
       .am-mode-btn.active { background: rgba(255,255,255,0.25); }
 
       /* 封面区与核心动画 */
-      .am-main-content { flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; min-height: 0; }
+      .am-main-content { flex: 1; display: flex; align-items: stretch; justify-content: center; width: 100%; min-height: 0; position: relative; }
       
       .am-big-cover { 
         position: absolute;
@@ -1377,7 +1377,39 @@
       .am-lyric-line { font-size: 24px; font-weight: 700; color: rgba(255,255,255,0.25); padding: 10px 0; transition: 0.3s; line-height: 1.4; }
       .am-lyric-line.active { color: #fff; opacity: 1; transform: scale(1.02); }
 
-      .am-list-view { display: none; width: 100%; height: 90%; overflow-y: auto; }
+      .am-list-view { display: none; width: 100%; height: 100%; flex-direction: column; overflow: hidden; }
+      .am-list-header { 
+        display: flex; gap: 20px; margin-bottom: 15px; padding: 10px 0;
+        border-bottom: 1px solid rgba(255,255,255,0.05); flex-shrink: 0;
+      }
+      .am-list-tab { 
+        font-size: 18px; font-weight: 700; color: rgba(255,255,255,0.3); cursor: pointer; transition: 0.2s;
+        position: relative; padding-bottom: 8px;
+      }
+      .am-list-tab.active { color: #fff; }
+      .am-list-tab.active::after {
+        content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+        background: var(--am-accent); border-radius: 2px;
+      }
+      .am-list-content { flex: 1; overflow-y: auto; padding-top: 10px; -webkit-overflow-scrolling: touch; }
+      
+      /* 移动端歌单卡片样式 */
+      .am-playlist-card {
+        display: flex; align-items: center; gap: 15px; padding: 12px;
+        background: rgba(255,255,255,0.05); border-radius: 12px; margin-bottom: 12px;
+      }
+      .am-playlist-icon {
+        width: 50px; height: 50px; border-radius: 8px; background: rgba(255,255,255,0.1);
+        display: flex; align-items: center; justify-content: center; font-size: 24px;
+      }
+      .am-playlist-info { flex: 1; }
+      .am-playlist-name { font-size: 16px; font-weight: 600; color: #fff; }
+      .am-playlist-count { font-size: 13px; color: var(--am-subtext); margin-top: 2px; }
+      .am-new-playlist-btn {
+        width: 100%; padding: 15px; border-radius: 12px; border: 1px dashed rgba(255,255,255,0.2);
+        background: transparent; color: #fff; font-size: 16px; font-weight: 500;
+        display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 20px;
+      }
 
       /* 底部控制区 - 强制吸底 */
       .am-controls-footer { width: 100%; padding-bottom: 20px; flex-shrink: 0; }
@@ -1571,8 +1603,13 @@
         <div class="am-main-content">
           <div id="am-lyrics-view" class="am-lyrics-view"></div>
           <div id="am-list-view" class="am-list-view">
-            <div class="am-list-header">Up Next</div>
-            <div id="am-continue-list"></div>
+            <div class="am-list-header">
+              <div class="am-list-tab active" data-tab="nextup">待播清单</div>
+              <div class="am-list-tab" data-tab="playlists">我的歌单</div>
+            </div>
+            <div id="am-list-content" class="am-list-content">
+              <!-- 内容动态渲染 -->
+            </div>
           </div>
         </div>
         
@@ -2014,7 +2051,7 @@
     function setLanguage(lang){
       if(lang!=='zh' && lang!=='en') lang='zh';
       state.language=lang;
-      try{localStorage.setItem('pikachu-music-lang',lang);}catch(e){}
+      saveState();
       document.querySelectorAll('.lang-btn').forEach(btn=>{
         btn.classList.toggle('active',btn.dataset.lang===lang);
       });
@@ -2714,7 +2751,11 @@
       const tr=state.currentTrack; if(!tr)return;
       const i=state.favorites.findIndex(x=>x.uid===tr.uid);
       if(i>=0){state.favorites.splice(i,1);showToast(t('toastRemovedFavorite'));}
-      else{state.favorites.push(tr);showToast(t('toastAddedFavorite'));}
+      else{
+        state.favorites.push(tr);
+        saveState();
+        showToast(t('toastAddedFavorite'));
+      }
       updateMainFavButton();
       renderPlaylistList();
     }
@@ -2737,11 +2778,121 @@
         return;
       }
       pl.tracks.push(track);
+      saveState();
       renderPlaylistList();
       showToast(t('toastAddedToPlaylist'));
     }
 
     // ===================== 搜索结果 / 播放列表渲染 =====================
+
+    // 移动端列表内容渲染 (待播 / 歌单)
+    let currentMobileTab = 'nextup';
+    function renderMobileListContent() {
+      const content = document.getElementById('am-list-content');
+      if (!content) return;
+      content.innerHTML = '';
+
+      if (currentMobileTab === 'nextup') {
+        // 渲染待播清单
+        const list = getActiveList();
+        if (list.length === 0) {
+          content.innerHTML = '<div style="text-align:center; padding:40px; color:rgba(255,255,255,0.3);">暂无待播歌曲</div>';
+          return;
+        }
+        list.forEach((track, i) => {
+          const item = document.createElement('div');
+          item.className = 'search-mini-item ripple-target';
+          item.innerHTML = `
+            <div class="mini-meta-main">
+              <div class="mini-title">${track.title || 'Unknown'}</div>
+              <div class="mini-artist">${track.artist || ''}</div>
+            </div>
+            <div class="mini-right">
+              <div class="mini-badge">#${i + 1}</div>
+            </div>
+          `;
+          item.addEventListener('click', () => playFromList(state.playContext.type, i, state.playContext.playlistId));
+          content.appendChild(item);
+        });
+      } else {
+        // 渲染歌单列表
+        renderMobilePlaylists(content);
+      }
+    }
+
+    function renderMobilePlaylists(container) {
+      // 1. 新建歌单按钮
+      const newBtn = document.createElement('button');
+      newBtn.className = 'am-new-playlist-btn ripple-target';
+      newBtn.innerHTML = '<i data-lucide="plus"></i> <span>新建歌单</span>';
+      newBtn.addEventListener('click', () => {
+        const name = prompt(t('modalNewPlaylistDesc'));
+        if (name && name.trim()) {
+          createPlaylist(name.trim());
+          renderMobileListContent();
+        }
+      });
+      container.appendChild(newBtn);
+      if(window.lucide) window.lucide.createIcons();
+
+      // 2. 收藏夹卡片
+      const favCard = document.createElement('div');
+      favCard.className = 'am-playlist-card ripple-target';
+      favCard.innerHTML = `
+        <div class="am-playlist-icon" style="background:linear-gradient(135deg, #ff5e3a, #ff2a68)">❤️</div>
+        <div class="am-playlist-info">
+          <div class="am-playlist-name">我的收藏</div>
+          <div class="am-playlist-count">${state.favorites.length} 首歌曲</div>
+        </div>
+      `;
+      favCard.addEventListener('click', () => {
+        playFromList('favorites', 0);
+        currentMobileTab = 'nextup';
+        document.querySelectorAll('.am-list-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'nextup'));
+        renderMobileListContent();
+      });
+      container.appendChild(favCard);
+
+      // 3. 自建歌单列表
+      state.playlists.forEach(pl => {
+        const card = document.createElement('div');
+        card.className = 'am-playlist-card ripple-target';
+        card.innerHTML = `
+          <div class="am-playlist-icon">📜</div>
+          <div class="am-playlist-info">
+            <div class="am-playlist-name">${pl.name}</div>
+            <div class="am-playlist-count">${pl.tracks.length} 首歌曲</div>
+          </div>
+          <button class="am-rename-btn" style="background:transparent; border:none; color:rgba(255,255,255,0.4); padding:10px;">
+            <i data-lucide="edit-3"></i>
+          </button>
+        `;
+        
+        // 点击卡片主体播放
+        card.addEventListener('click', (e) => {
+          if(e.target.closest('.am-rename-btn')) return;
+          playFromList('playlist', 0, pl.id);
+          currentMobileTab = 'nextup';
+          document.querySelectorAll('.am-list-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'nextup'));
+          renderMobileListContent();
+        });
+
+        // 点击重命名按钮
+        const renameBtn = card.querySelector('.am-rename-btn');
+        renameBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const newName = prompt(t('modalNewPlaylistDesc'), pl.name);
+          if (newName && newName.trim()) {
+            renamePlaylist(pl.id, newName.trim());
+            renderMobileListContent();
+          }
+        });
+
+        container.appendChild(card);
+      });
+      if(window.lucide) window.lucide.createIcons();
+    }
+
 
     function renderMiniSearchList(){
       const wrap=dom.searchMiniList;
@@ -2827,20 +2978,67 @@
     function closePlaylistModal(){
       dom.playlistModal.classList.remove('show');
     }
-    function createPlaylist(){
-      let name=dom.playlistNameInput.value.trim();
+    function createPlaylist(providedName){
+      let name = providedName || dom.playlistNameInput.value.trim();
       if(!name)name=state.language==='zh'?'未命名歌单':'Untitled Playlist';
       const id='pl-'+Date.now()+'-'+Math.random().toString(16).slice(2);
       const pl={id,name,tracks:[]};
       state.playlists.push(pl);
+      
       const opt=document.createElement('option');
       opt.value=pl.id; opt.textContent=pl.name;
       dom.playlistSelect.appendChild(opt);
       dom.playlistSelect.value=pl.id;
+      
       closePlaylistModal();
       renderPlaylistList();
+      saveState();
       showToast(t('toastPlaylistCreated'));
     }
+
+    function renamePlaylist(id, newName) {
+      const pl = state.playlists.find(p => p.id === id);
+      if (pl) {
+        pl.name = newName;
+        saveState();
+        renderPlaylistList();
+        // 更新下拉框名字
+        const opt = [...dom.playlistSelect.options].find(o => o.value === id);
+        if (opt) opt.textContent = newName;
+      }
+    }
+
+    function saveState() {
+      const data = {
+        language: state.language,
+        favorites: state.favorites,
+        playlists: state.playlists
+      };
+      try {
+        localStorage.setItem('musicsquare-state', JSON.stringify(data));
+      } catch(e) { console.error('Save state failed', e); }
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem('musicsquare-state');
+        if (!raw) return;
+        const data = JSON.parse(raw);
+        if (data.language) state.language = data.language;
+        if (data.favorites) state.favorites = data.favorites;
+        if (data.playlists) {
+          state.playlists = data.playlists;
+          // 同步桌面端歌单下拉框
+          dom.playlistSelect.innerHTML = '<option value="" disabled selected data-i18n="modalNewPlaylistTitle">选择或新建歌单</option>';
+          state.playlists.forEach(pl => {
+            const opt = document.createElement('option');
+            opt.value = pl.id; opt.textContent = pl.name;
+            dom.playlistSelect.appendChild(opt);
+          });
+        }
+      } catch(e) { console.error('Load state failed', e); }
+    }
+
 
     // ===================== 搜索加载更多 =====================
 
@@ -3069,8 +3267,8 @@
       });
 
       dom.listToggle.addEventListener('click', () => {
-        const isP = dom.playlistContainer.style.display === 'block';
-        dom.playlistContainer.style.display = isP ? 'none' : 'block';
+        const isP = dom.playlistContainer.style.display === 'flex';
+        dom.playlistContainer.style.display = isP ? 'none' : 'flex';
         // 核心：切换动画状态
         const panel = document.querySelector('.player-panel');
         if(panel) panel.classList.toggle('is-mini', !isP);
@@ -3083,8 +3281,19 @@
         dom.lyricsToggle.classList.remove('active');
         dom.searchToggle.classList.remove('active');
         
-        if(!isP) renderPlaylistList();
+        if(!isP) renderMobileListContent();
       });
+
+      // 移动端歌单/待播标签切换
+      document.querySelectorAll('.am-list-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.am-list-tab').forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          currentMobileTab = tab.dataset.tab;
+          renderMobileListContent();
+        });
+      });
+
 
       // 播放模式按钮绑定
       const btnShuffle = document.getElementById('mode-shuffle');
@@ -3369,10 +3578,7 @@
       log('init() started');
       
       try { setupDOM(); log('setupDOM OK'); } catch(e) { log('setupDOM FAILED: ' + e.message); }
-      try {
-        const lg=localStorage.getItem('pikachu-music-lang'); 
-        if(lg)state.language=lg;
-      } catch(e){}
+      try { loadState(); log('loadState OK'); } catch(e) { log('loadState FAILED'); }
       
       try { setupParticles(); } catch(e) { log('setupParticles FAILED: ' + e.message); }
       try { setupRipple(); } catch(e) { log('setupRipple FAILED: ' + e.message); }
