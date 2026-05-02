@@ -49,4 +49,4 @@
 
 ---
 
-<p align="center">Made with ❤️ by MusicSquare Team</p>
+<p align="center">Made with ❤️ by Theodore</p>
