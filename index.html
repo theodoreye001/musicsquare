@@ -435,6 +435,8 @@
       cursor: pointer;
       box-shadow: 0 7px 16px rgba(245, 200, 76, 0.75);
       transition: transform .12s ease, box-shadow .12s ease;
+      position: relative;
+      z-index: 1;
     }
 
     @media (max-width: 640px) {
@@ -1494,6 +1496,8 @@
       color: #aaa;
       font-size: 18px;
       cursor: pointer;
+      position: relative;
+      z-index: 1;
     }
 
     .modal-desc {
@@ -2345,14 +2349,14 @@
           <div class="modal-title-icon">➕</div>
           <span data-i18n="addToPlaylistTitle">加入歌单</span>
         </div>
-        <button id="am-add-to-pl-close" class="modal-close-btn">×</button>
+        <button id="am-add-to-pl-close" class="modal-close-btn ripple-target" onclick="closeAddToPlaylistModal()">×</button>
       </div>
       <div id="am-add-to-pl-list" class="am-pl-select-list">
         <!-- Playlists listed here -->
       </div>
       <div class="modal-actions">
         <button id="am-add-to-pl-new" class="btn btn-primary ripple-target" style="width:100%"
-          data-i18n="newPlaylist">新建歌单</button>
+          data-i18n="newPlaylist" onclick="closeAddToPlaylistModal(); setTimeout(openPlaylistModal, 100);">新建歌单</button>
       </div>
     </div>
   </div>
@@ -2365,13 +2369,13 @@
           <div class="modal-title-icon">🎵</div>
           <span data-i18n="modalNewPlaylistTitle">新建歌单</span>
         </div>
-        <button id="playlist-close" class="modal-close-btn">×</button>
+        <button id="playlist-close" class="modal-close-btn ripple-target" onclick="closePlaylistModal()">×</button>
       </div>
       <p class="modal-desc" data-i18n="modalNewPlaylistDesc">给你的歌单取一个可爱的名字吧～</p>
       <input id="playlist-name-input" type="text" placeholder="例如：通勤歌单 / 宝可梦歌单" />
       <div class="modal-actions">
-        <button id="playlist-cancel-btn" class="btn btn-ghost ripple-target" data-i18n="modalCancel">取消</button>
-        <button id="playlist-confirm-btn" class="btn btn-secondary ripple-target" data-i18n="modalConfirm">确定</button>
+        <button id="playlist-cancel-btn" class="btn btn-ghost ripple-target" data-i18n="modalCancel" onclick="closePlaylistModal()">取消</button>
+        <button id="playlist-confirm-btn" class="btn btn-secondary ripple-target" data-i18n="modalConfirm" onclick="createPlaylist()">确定</button>
       </div>
     </div>
   </div>
@@ -2384,7 +2388,7 @@
           <div class="modal-title-icon">⌨️</div>
           <span data-i18n="shortcutPanelTitle">快捷键说明</span>
         </div>
-        <button id="shortcut-close" class="modal-close-btn">×</button>
+        <button id="shortcut-close" class="modal-close-btn ripple-target" onclick="document.getElementById('shortcut-modal').classList.remove('show')">×</button>
       </div>
       <p class="modal-desc" data-i18n="shortcutPanelDesc">
         使用键盘可以更加方便地控制音乐站：
@@ -3968,10 +3972,16 @@
         const amAddPlClose = document.getElementById('am-add-to-pl-close');
         if (amAddPlClose) amAddPlClose.addEventListener('click', closeAddToPlaylistModal);
 
+        const amAddPlModal = document.getElementById('am-add-to-pl-modal');
+        if (amAddPlModal) amAddPlModal.addEventListener('click', e => {
+          if (e.target === amAddPlModal) closeAddToPlaylistModal();
+        });
+
         const amAddPlNew = document.getElementById('am-add-to-pl-new');
-        if (amAddPlNew) amAddPlNew.addEventListener('click', () => {
+        if (amAddPlNew) amAddPlNew.addEventListener('click', (e) => {
+          e.stopPropagation();
           closeAddToPlaylistModal();
-          openPlaylistModal();
+          setTimeout(() => openPlaylistModal(), 100);
         });
 
         if (dom.playBtn) dom.playBtn.addEventListener('click', togglePlayPause);
@@ -4183,9 +4193,11 @@
           const typing = (tag === 'input' || tag === 'textarea');
           const playlistOpen = dom.playlistModal.classList.contains('show');
           const shortcutOpen = dom.shortcutModal.classList.contains('show');
+          const addToPlOpen = document.getElementById('am-add-to-pl-modal')?.classList.contains('show');
 
           if (e.key === 'Escape') {
-            if (playlistOpen) closePlaylistModal();
+            if (addToPlOpen) closeAddToPlaylistModal();
+            else if (playlistOpen) closePlaylistModal();
             if (shortcutOpen) dom.shortcutModal.classList.remove('show');
             return;
           }
@@ -4295,6 +4307,12 @@
       } else {
         init();
       }
+
+      // 暴露函数到全局作用域（供 HTML onclick 属性调用）
+      window.closePlaylistModal = closePlaylistModal;
+      window.createPlaylist = createPlaylist;
+      window.openPlaylistModal = openPlaylistModal;
+      window.closeAddToPlaylistModal = closeAddToPlaylistModal;
 
     })();
   </script>
