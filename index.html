@@ -300,61 +300,191 @@
       font-size: 15px;
     }
 
-    /* 主布局：左右也参与分配宽度 */
+    /* --- 核心布局：移动端优先 (Mobile First) --- */
     .layout {
-      flex: 1;
-      display: grid;
-      grid-template-columns:
-        minmax(260px, 0.8fr) minmax(360px, 1.58fr) minmax(260px, 0.82fr);
+      display: flex;
+      flex-direction: column;
       gap: 10px;
       min-height: 0;
+      flex: 1;
+      position: relative;
     }
 
-    @media (max-width: 1080px) {
+    /* 移动端侧边栏作为容器不能隐藏，且必须允许子元素交互 */
+    .am-side-panel {
+      position: absolute;
+      inset: 0;
+      pointer-events: none; /* 容器本身不拦截，允许点击穿透到下面 */
+    }
+    .am-side-panel > * {
+      pointer-events: auto; /* 关键：子元素（列表、搜索）必须恢复点击交互 */
+    }
+
+    /* --- 宽屏桌面端：50/50 绝对隔离布局 --- */
+    /* --- 宽屏桌面端：50/50 绝对隔离方案 (加固版) --- */
+    @media (min-width: 1024px) {
+      .app {
+        max-width: 1400px !important;
+        margin: 20px auto !important;
+        height: calc(100vh - 40px) !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        border-radius: 30px !important;
+        display: block !important;
+      }
+
       .layout {
-        grid-template-columns: 1.1fr 1.2fr;
-        grid-template-rows: minmax(260px, 0.9fr) minmax(260px, 1.1fr);
-        grid-template-areas:
-          "player player"
-          "search playlist";
+        display: grid !important;
+        grid-template-columns: 50% 50% !important; /* 左 50%，右 50% */
+        grid-template-rows: 100% !important;
+        gap: 0 !important;
+        height: 100% !important;
+        width: 100% !important;
+        position: relative !important;
+        background: rgba(0, 0, 0, 0.4) !important;
+        backdrop-filter: blur(40px);
       }
 
-      .search-panel {
-        grid-area: search;
-      }
-
+      /* 核心：左侧容器 - 必须死守 50% 宽度 */
       .player-panel {
-        grid-area: player;
+        grid-column: 1 !important;
+        grid-row: 1 !important;
+        position: relative !important; /* 彻底击碎移动端的 fixed/inset */
+        width: 100% !important;
+        height: 100% !important;
+        inset: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        background: rgba(255, 255, 255, 0.02) !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+        z-index: 10 !important;
+        overflow: hidden !important;
       }
 
-      .playlist-panel {
-        grid-area: playlist;
+      /* 封面图：彻底置顶，拒绝被挡 */
+      #am-big-cover {
+        position: absolute !important;
+        top: 32% !important; /* 再次大幅上移，彻底避开下方控制区 */
+        left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        width: 360px !important;
+        height: 360px !important;
+        margin: 0 !important;
+        display: block !important;
+        border-radius: 20px !important;
+        box-shadow: 0 40px 120px rgba(0,0,0,0.8) !important;
+        z-index: 30 !important; /* 强制置于所有层级之上 */
+        transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1) !important; /* 平滑过渡，去除回弹导致的忽大忽小 */
       }
-    }
 
-    @media (max-width: 860px) {
-      .layout {
-        grid-template-columns: 1fr;
-        grid-template-rows: auto 1fr auto;
-        grid-template-areas:
-          "search"
-          "player"
-          "playlist";
+      /* 歌词模式下：强制 Header 顶部对齐，并统一 25px 边距 */
+      .player-panel.is-mini .am-header {
+        display: flex !important;
+        align-items: flex-start !important;
+        padding: 25px 25px 0 25px !important;
       }
-    }
+      .player-panel.is-mini .am-header-info {
+        padding: 0 0 0 85px !important; /* 留出左侧空间给 50px 的图片 + 边距 */
+      }
+      .player-panel.is-mini #am-big-cover {
+        top: 25px !important;
+        left: 25px !important;
+        transform: none !important;
+        width: 50px !important;
+        height: 50px !important;
+        z-index: 100 !important;
+      }
 
-    @media (max-width: 640px) {
+      .am-main-content {
+        flex: 1 !important; /* 自适应上方剩余空间，不限死高度 */
+        height: auto !important;
+        position: relative !important;
+        width: 100% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        overflow: visible !important;
+      }
 
-      .search-panel.mobile-collapsed .source-row,
-      .search-panel.mobile-collapsed .limit-row,
-      .search-panel.mobile-collapsed .search-stats,
-      .search-panel.mobile-collapsed .search-results-mini {
+      #am-lyrics-view {
+        width: 100% !important;
+        height: 100% !important;
+        position: relative !important;
+        background: transparent !important;
+        padding-top: 100px !important;
         display: none;
       }
 
-      .playlist-panel.mobile-hidden {
-        display: none;
+      .player-panel.is-mini #am-lyrics-view {
+        display: block !important;
       }
+
+      /* 底部控制栏：高度自适应内容，不许被切断 */
+      .am-controls-footer {
+        flex-shrink: 0 !important;
+        height: auto !important; /* 关键：让内容自由撑开，不限死35% */
+        position: relative !important;
+        width: 100% !important;
+        padding: 25px 30px 30px 30px !important; /* 顶部留白减小，让磨砂层恰好盖在文字上方 */
+        background: linear-gradient(to top, rgba(0,0,0,0.8) 20%, rgba(0,0,0,0.4) 80%, transparent) !important;
+        backdrop-filter: blur(30px) !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        z-index: 20 !important;
+        margin-top: auto !important;
+      }
+
+      .player-panel.is-mini #am-lyrics-view {
+        display: block !important;
+      }
+
+      /* 右侧容器 - 死守剩下的 50% */
+      .am-side-panel {
+        grid-column: 2 !important;
+        grid-row: 1 !important;
+        display: flex !important;
+        position: relative !important;
+        width: 100% !important;
+        height: 100% !important;
+        background: transparent !important;
+        z-index: 5 !important;
+        pointer-events: auto !important; /* 桌面端必须恢复点击 */
+      }
+
+      #am-list-view, 
+      #am-search-modal {
+        position: absolute !important;
+        inset: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        padding: 50px 40px !important;
+        box-sizing: border-box;
+        overflow-y: auto !important;
+        background: var(--bg-dark) !important; /* 给个底色防止透视 */
+      }
+
+      /* 桌面端：列表默认显示，搜索默认隐藏 */
+      #am-list-view { 
+        display: flex !important; 
+        z-index: 1 !important;
+      }
+      
+      #am-search-modal {
+        display: none !important;
+        z-index: 2 !important;
+      }
+      
+      /* 搜索激活时：强行显示并压制列表 */
+      #am-search-modal.active {
+        display: flex !important;
+        z-index: 100 !important;
+        background: rgba(2, 3, 10, 0.98) !important;
+        backdrop-filter: blur(60px) !important;
+      }
+
+      .am-utility-bar { justify-content: center !important; gap: 40px !important; }
+      .am-search-close { display: none !important; }
     }
 
     .panel {
@@ -1809,7 +1939,7 @@
 
     /* 缩小版封面 (歌词/列表模式) - 绝对定位并对齐顶部文字 */
     .player-panel.is-mini .am-big-cover {
-      top: 20px !important;
+      top: 25px !important;
       left: 20px !important;
       transform: none !important;
       width: 44px !important;
@@ -1817,6 +1947,9 @@
       border-radius: 8px !important;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
       z-index: 200 !important;
+    }
+    .player-panel.is-mini .am-header-info {
+      padding-top: 5px !important; /* 20px(panel padding) + 5px = 25px，与图片完美齐平 */
     }
 
     .am-big-cover.playing:not(.is-mini) {
@@ -1854,11 +1987,16 @@
 
     .am-list-view {
       display: none;
-      width: 100%;
-      height: 100%;
+      position: absolute;
+      top: 150px; /* 进一步留出顶部 mini 标题和播放模式的空间 */
+      left: 0;
+      right: 0;
+      bottom: 280px; /* 显著提升底部留白，确保不遮挡进度条和播放按钮 */
+      z-index: 100;
+      background: transparent;
       flex-direction: column;
       overflow: hidden;
-      padding-top: 40px;
+      padding: 0 24px;
     }
 
     .am-list-header {
@@ -2289,18 +2427,8 @@
               style="width:16px; margin-right:6px"></i> Autoplay</button>
         </div>
 
-        <!-- 3. 主展示区 (歌词/列表) -->
         <div class="am-main-content">
           <div id="am-lyrics-view" class="am-lyrics-view"></div>
-          <div id="am-list-view" class="am-list-view">
-            <div class="am-list-header">
-              <div class="am-list-tab active" data-tab="nextup">待播清单</div>
-              <div class="am-list-tab" data-tab="playlists">我的歌单</div>
-            </div>
-            <div id="am-list-content" class="am-list-content">
-              <!-- 内容动态渲染 -->
-            </div>
-          </div>
         </div>
 
         <!-- 封面图 (提升层级，用于全屏动画) -->
@@ -2343,42 +2471,55 @@
 
         <audio id="audio" preload="metadata"></audio>
       </section>
+      
+      <!-- 右侧侧边栏 (桌面端可见) -->
+      <aside class="am-side-panel">
+        <!-- 列表/歌单层 -->
+        <div id="am-list-view" class="am-list-view">
+          <div class="am-list-header">
+            <div class="am-list-tab active" data-tab="nextup">待播清单</div>
+            <div class="am-list-tab" data-tab="playlists">我的歌单</div>
+          </div>
+          <div id="am-list-content" class="am-list-content">
+            <!-- 内容动态渲染 -->
+          </div>
+        </div>
 
-      <!-- 全屏搜索层 -->
-      <div id="am-search-modal" class="am-search-modal">
-        <div class="am-search-box">
-          <i data-lucide="search" style="color:var(--am-subtext); margin-right:10px;"></i>
-          <input id="am-search-input" class="am-search-input" type="text" placeholder="搜索歌曲、歌手..." />
-          <button id="am-search-cancel" class="am-search-close" data-i18n="modalCancel">取消</button>
-        </div>
+        <!-- 搜索层 -->
+        <div id="am-search-modal" class="am-search-modal">
+          <div class="am-search-box">
+            <i data-lucide="search" style="color:var(--am-subtext); margin-right:10px;"></i>
+            <input id="am-search-input" class="am-search-input" type="text" placeholder="搜索歌曲、歌手..." />
+            <button id="am-search-cancel" class="am-search-close" data-i18n="modalCancel">取消</button>
+          </div>
 
-        <div class="am-source-filters">
-          <div class="am-source-pill migu active" data-source="migu">
-            <span class="dot"></span>
-            <div class="checkbox">✓</div>
-            <span class="label">咪咕</span>
+          <div class="am-source-filters">
+            <div class="am-source-pill migu active" data-source="migu">
+              <span class="dot"></span>
+              <div class="checkbox">✓</div>
+              <span class="label">咪咕</span>
+            </div>
+            <div class="am-source-pill netease active" data-source="netease">
+              <span class="dot"></span>
+              <div class="checkbox">✓</div>
+              <span class="label">网易云</span>
+            </div>
+            <div class="am-source-pill qq active" data-source="qq">
+              <span class="dot"></span>
+              <div class="checkbox">✓</div>
+              <span class="label">QQ</span>
+            </div>
+            <div class="am-source-pill kuwo active" data-source="kuwo">
+              <span class="dot"></span>
+              <div class="checkbox">✓</div>
+              <span class="label">酷我</span>
+            </div>
           </div>
-          <div class="am-source-pill netease active" data-source="netease">
-            <span class="dot"></span>
-            <div class="checkbox">✓</div>
-            <span class="label">网易云</span>
-          </div>
-          <div class="am-source-pill qq active" data-source="qq">
-            <span class="dot"></span>
-            <div class="checkbox">✓</div>
-            <span class="label">QQ</span>
-          </div>
-          <div class="am-source-pill kuwo active" data-source="kuwo">
-            <span class="dot"></span>
-            <div class="checkbox">✓</div>
-            <span class="label">酷我</span>
+          <div id="am-search-results" class="am-search-results">
+            <!-- Results rendered here -->
           </div>
         </div>
-        <div id="am-search-results" class="am-search-results">
-          <!-- Results rendered here -->
-        </div>
-      </div>
-      </section>
+      </aside>
     </main>
   </div>
 
