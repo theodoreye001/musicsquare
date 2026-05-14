@@ -3359,8 +3359,12 @@
             return;
           }
 
+          // 强制 HTTPS 转换，防止 GitHub Pages 下的 Mixed Content 拦截
+          const finalUrl = track.audioUrl.replace(/^http:\/\//i, 'https://');
+          console.log(`[DEBUG] Final Audio URL: ${finalUrl}`);
+
           // 设置新 src 并播放
-          dom.audio.src = track.audioUrl;
+          dom.audio.src = finalUrl;
           dom.audio.load();
 
           // 尝试播放，处理自动播放策略限制
