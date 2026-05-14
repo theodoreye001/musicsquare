@@ -2311,7 +2311,7 @@
           <!-- 歌曲主标题 (全屏模式) -->
           <div class="am-track-details">
             <h2 id="am-main-title">MusicSquare</h2>
-            <p id="am-main-artist">点击搜索开启音乐之旅</p>
+            <p id="am-main-artist">点击搜索，开启音乐之旅</p>
           </div>
 
           <!-- 进度条 -->
@@ -3303,7 +3303,10 @@
         state.currentTrack = track;
         state.playContext = context || state.playContext;
 
-        // 在异步加载前先更新封面和标题，让用户看到反应
+        // 重置自动播放相关标志
+        state._autoPlayTriggered = false;
+        state._songEndedHandling = false;
+
         updateDocumentTitle();
         updateMediaMetadata();
 
@@ -3325,10 +3328,8 @@
         applyUI();
         updateMainFavButton();
 
-        // [核心修复] 移动端抢先激活 Audio 对象，防止异步获取 URL 后 play() 被拦截
+        // 先暂停当前播放，但不清空 src，避免在异步加载期间触发 ended 事件
         dom.audio.pause();
-        dom.audio.src = "";
-        dom.audio.load();
 
         if (dom.searchModal) dom.searchModal.classList.remove('active');
 
@@ -3354,25 +3355,39 @@
 
           if (!track.audioUrl) {
             showToast(`播放失败: [${track.source}] 无法获取音频地址`);
+            setTimeout(() => playNext('next'), 1500);
             return;
           }
 
+          // 设置新 src 并播放
           dom.audio.src = track.audioUrl;
-          const playPromise = dom.audio.play();
-          if (playPromise !== undefined) {
-            playPromise.then(() => {
+          dom.audio.load();
+
+          // 尝试播放，处理自动播放策略限制
+          const attemptPlay = (muted = false) => {
+            if (muted) dom.audio.muted = true;
+            return dom.audio.play().then(() => {
+              if (muted) {
+                // 静音播放成功后尝试恢复音量
+                setTimeout(() => { dom.audio.muted = false; }, 100);
+              }
               if (dom.playBtn) dom.playBtn.innerHTML = '<i data-lucide="pause"></i>';
               if (window.lucide) window.lucide.createIcons();
-            }).catch(error => {
-              console.error("Playback failed:", error);
-              showToast(`播放被拦截: ${error.message}`);
+              state.isPlaying = true;
             });
-          }
+          };
 
-          state.isPlaying = true;
+          attemptPlay(false).catch(error => {
+            console.error("Normal play failed, trying muted:", error);
+            attemptPlay(true).catch(e2 => {
+              console.error("Muted play also failed:", e2);
+              showToast(`播放被拦截，请手动点击播放`);
+            });
+          });
         } catch (e) {
           console.error("ensureTrackDetails failed:", e);
           showToast(`加载失败: [${track.source}] ${e.message || '网络或接口异常'}`);
+          setTimeout(() => playNext('next'), 1500);
         }
 
         renderMiniSearchList();
@@ -3456,15 +3471,24 @@
       }
 
       function playNext(direction) {
-        const list = getActiveList(); if (!list.length) return;
+        console.log('[DEBUG] playNext called with direction:', direction);
+        const list = getActiveList(); 
+        console.log('[DEBUG] Active list length:', list.length);
+        if (!list.length) return;
+        
         let idx = state.playContext.index ?? -1;
+        console.log('[DEBUG] Current index from state:', idx);
         if (idx < 0 || idx >= list.length) idx = 0;
+        console.log('[DEBUG] Adjusted index:', idx);
 
         if (state.playMode === 'single') {
+          console.log('[DEBUG] Single mode: restarting current song');
           dom.audio.currentTime = 0;
           dom.audio.play().catch(() => { });
           return;
         }
+        
+        console.log('[DEBUG] Play mode:', state.playMode);
         if (state.playMode === 'shuffle') {
           if (list.length === 1) {
             idx = 0;
@@ -3476,6 +3500,8 @@
         } else {
           idx = (idx + (direction === 'prev' ? -1 : 1) + list.length) % list.length;
         }
+        
+        console.log('[DEBUG] Final index to play:', idx);
         playFromList(state.playContext.type, idx, state.playContext.playlistId);
       }
 
@@ -4071,9 +4097,12 @@
           });
         }
 
-        dom.volumeSlider.addEventListener('input', () => {
-          dom.audio.volume = parseFloat(dom.volumeSlider.value);
-        });
+        // 音量滑块（可选，如果存在才绑定）
+        if (dom.volumeSlider) {
+          dom.volumeSlider.addEventListener('input', () => {
+            dom.audio.volume = parseFloat(dom.volumeSlider.value);
+          });
+        }
 
         dom.audio.addEventListener('timeupdate', () => {
           if (state.isSeeking) return;
@@ -4186,8 +4215,46 @@
           if (dom.coverImg) { dom.coverImg.classList.add('paused'); dom.coverImg.classList.remove('playing'); }
           if (window.lucide) window.lucide.createIcons();
         });
-        dom.audio.addEventListener('ended', () => {
+
+        // 【核心修复】自动播放下一首 - 使用多种机制确保可靠
+        // 1. 标准的 ended 事件
+        dom.audio.addEventListener('ended', handleSongEnded);
+
+        // 2. 同时设置 onended 属性作为备份
+        dom.audio.onended = handleSongEnded;
+
+        function handleSongEnded() {
+          console.log('[DEBUG] handleSongEnded triggered');
+          console.log('[DEBUG] Current playMode:', state.playMode);
+          console.log('[DEBUG] Current playContext:', state.playContext);
+          console.log('[DEBUG] Current track:', state.currentTrack);
+          
+          // 防止重复触发
+          if (state._songEndedHandling) return;
+          state._songEndedHandling = true;
+          
+          // 同步执行 playNext 以保留浏览器 autoplay 权限
           playNext('next');
+          
+          // 延迟释放防抖锁
+          setTimeout(() => {
+            state._songEndedHandling = false;
+          }, 500);
+        }
+
+        // 3. 在 timeupdate 中检测歌曲是否已播放完毕（备用机制）
+        let lastEndedCheck = 0;
+        dom.audio.addEventListener('timeupdate', () => {
+          const cur = dom.audio.currentTime || 0;
+          const dur = dom.audio.duration || 0;
+          // 当 duration 有效，currentTime 等于 duration，且距离上次检查超过1秒
+          if (dur > 0 && cur > 0 && cur >= dur - 0.1 && Date.now() - lastEndedCheck > 1000) {
+            lastEndedCheck = Date.now();
+            console.log('[DEBUG] timeupdate detected song end, cur=' + cur + ', dur=' + dur);
+            if (!state._songEndedHandling) {
+              handleSongEnded();
+            }
+          }
         });
 
         console.log('setupEvents: Core listeners attached.');
