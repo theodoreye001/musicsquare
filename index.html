@@ -699,9 +699,9 @@
       box-shadow: 0 0 6px currentColor;
     }
 
-    .source-dot.migu {
-      background: #ffb74d;
-      color: #ffb74d;
+    .source-dot.joox {
+      background: #1ecc94;
+      color: #1ecc94;
     }
 
     .source-dot.netease {
@@ -982,9 +982,9 @@
       background: rgba(0, 0, 0, 0.35);
     }
 
-    .source-pill.source-migu {
-      color: #ffb74d;
-      background: rgba(255, 183, 77, 0.12);
+    .source-pill.source-joox {
+      color: #1ecc94;
+      background: rgba(30, 204, 148, 0.12);
     }
 
     .source-pill.source-netease {
@@ -2291,8 +2291,8 @@
       opacity: 1;
     }
 
-    .am-source-pill.migu .dot {
-      background: #ff7600;
+    .am-source-pill.joox .dot {
+      background: #1ecc94;
     }
 
     .am-source-pill.netease .dot {
@@ -2371,9 +2371,9 @@
       border-radius: 50%;
     }
 
-    .source-dot.migu {
-      background: #ff7600;
-      box-shadow: 0 0 4px #ff7600;
+    .source-dot.joox {
+      background: #1ecc94;
+      box-shadow: 0 0 4px #1ecc94;
     }
 
     .source-dot.netease {
@@ -2494,10 +2494,10 @@
           </div>
 
           <div class="am-source-filters">
-            <div class="am-source-pill migu active" data-source="migu">
+            <div class="am-source-pill joox active" data-source="joox">
               <span class="dot"></span>
               <div class="checkbox">✓</div>
-              <span class="label">咪咕</span>
+              <span class="label">JOOX</span>
             </div>
             <div class="am-source-pill netease active" data-source="netease">
               <span class="dot"></span>
@@ -2678,7 +2678,7 @@
           toastPlaymodeShuffle: "播放模式：随机播放",
           toastNeedPlaylistSelected: "请先选择一个歌单。",
           toastNoCurrentTrack: "当前没有正在播放的歌曲。",
-          sourceMigu: "咪咕",
+          sourceJoox: "JOOX",
           sourceNetease: "网易云",
           sourceQQ: "QQ音乐",
           sourceKuwo: "酷我",
@@ -2703,7 +2703,7 @@
           shortcutFocusSearch: "Focus on search box",
           shortcutCloseModal: "Tip: press Esc to close dialogs.",
           searchTitle: "Search",
-          searchSubtitle: "Supports Migu / Netease / QQ / Kuwo",
+          searchSubtitle: "Supports JOOX / Netease / QQ / Kuwo",
           searchButton: "Search",
           perSourceCount: "Per source",
           perSourceCountTail: "results",
@@ -2746,7 +2746,7 @@
           toastPlaymodeShuffle: "Play mode: shuffle",
           toastNeedPlaylistSelected: "Please select a playlist first.",
           toastNoCurrentTrack: "No track is currently playing.",
-          sourceMigu: "Migu",
+          sourceJoox: "JOOX",
           sourceNetease: "Netease",
           sourceQQ: "QQ Music",
           sourceKuwo: "Kuwo",
@@ -2760,10 +2760,10 @@
 
       const state = {
         language: 'zh',
-        enabledSources: { migu: true, netease: true, qq: true, kuwo: true },
+        enabledSources: { joox: true, netease: true, qq: true, kuwo: true },
         perSourceLimit: 10,
-        perSourceCurrentLimit: { migu: 10, netease: 10, qq: 10, kuwo: 10 },
-        perSourcePage: { migu: 1, netease: 1, qq: 1, kuwo: 1 },
+        perSourceCurrentLimit: { joox: 10, netease: 10, qq: 10, kuwo: 10 },
+        perSourcePage: { joox: 1, netease: 1, qq: 1, kuwo: 1 },
 
         searchKeyword: '',
         searchResults: [],
@@ -2848,11 +2848,11 @@
       }
 
       function getInterleavedSearchList() {
-        const grouped = { migu: [], netease: [], qq: [], kuwo: [] };
+        const grouped = { joox: [], netease: [], qq: [], kuwo: [] };
         state.searchResults.forEach(t => { if (grouped[t.source]) grouped[t.source].push(t); });
         Object.keys(grouped).forEach(k => grouped[k].sort((a, b) => (a.displayIndex || 0) - (b.displayIndex || 0)));
-        const order = ['migu', 'netease', 'qq', 'kuwo'];
-        const idx = { migu: 0, netease: 0, qq: 0, kuwo: 0 };
+        const order = ['joox', 'netease', 'qq', 'kuwo'];
+        const idx = { joox: 0, netease: 0, qq: 0, kuwo: 0 };
         const out = [];
         let added = true;
         while (added) {
@@ -2901,43 +2901,76 @@
 
       // ===================== 各平台搜索 =====================
 
-      async function searchMigu(kw, limit) {
-        const url = `https://api.xcvts.cn/api/music/migu?gm=${encodeURIComponent(kw)}&n=&num=${encodeURIComponent(limit)}&type=json`;
+      const JOOX_TOKEN = 'f84ao9lMF_q7husBWRfgUw';
+      const JOOX_BR = 4;
+
+      async function searchJoox(kw, limit) {
+        const url = `https://apicx.asia/api/joox_music?msg=${encodeURIComponent(kw)}&token=${encodeURIComponent(JOOX_TOKEN)}&br=${encodeURIComponent(JOOX_BR)}`;
         let added = 0;
         try {
           const res = await fetch(url);
           const json = await res.json();
-          if (json.code !== 200 || !Array.isArray(json.data)) return 0;
-          for (const it of json.data) {
-            const n = it.n;
-            const uid = `migu-${kw}-${n}-${it.title}-${it.singer}`;
-            if (state.trackMap.has(uid)) continue;
+          const songs = json && json.code === 200 && json.data && Array.isArray(json.data.songs) ? json.data.songs : [];
+          songs.slice(0, limit || songs.length).forEach((it, idx) => {
+            const songMid = it.songmid || '';
+            const songId = it['歌曲ID'] || songMid || (idx + 1);
+            const uid = `joox-${songMid || songId}`;
+            if (state.trackMap.has(uid)) return;
+
             const track = {
-              uid, source: 'migu', displayIndex: n || 0, keyword: kw,
-              requestNum: limit,
-              title: it.title || '', artist: it.singer || '', album: '',
-              cover: null, audioUrl: null, lrc: null, lrcUrl: null,
+              uid,
+              source: 'joox',
+              displayIndex: idx + 1,
+              keyword: kw,
+              jooxIndex: idx + 1,
+              songid: songId,
+              songMid: songMid,
+
+              title: it['歌曲名称'] || '',
+              artist: it['歌手'] || '',
+              album: it['专辑'] || '',
+
+              cover: null,
+              audioUrl: null,
+              lrc: it['歌词内容'] || null,
+              lrcUrl: null,
               detailsLoaded: false,
               quality: null,
               qualityLabel: null
             };
+
             state.trackMap.set(uid, track);
-            state.searchResults.push(track); added++;
-          }
-        } catch (e) { console.error('migu', e); }
+            state.searchResults.push(track);
+            added++;
+          });
+        } catch (e) {
+          console.error('joox search', e);
+        }
         return added;
       }
 
       async function searchNetease(kw, page, num) {
-        const url = `https://api.vkeys.cn/v2/music/netease?word=${encodeURIComponent(kw)}&page=${encodeURIComponent(page)}&num=${encodeURIComponent(num)}`;
+        const requestLimit = Math.max(1, page || 1) * Math.max(1, num || 10);
+        const url = `https://api.qijieya.cn/meting/?type=search&id=${encodeURIComponent(kw)}&limit=${encodeURIComponent(requestLimit)}&server=netease`;
         let added = 0;
+
+        function pickQueryParam(rawUrl, key) {
+          if (!rawUrl) return '';
+          try {
+            return new URL(rawUrl, window.location.href).searchParams.get(key) || '';
+          } catch (e) {
+            const m = String(rawUrl).match(new RegExp('[?&]' + key + '=([^&]+)'));
+            return m ? decodeURIComponent(m[1]) : '';
+          }
+        }
+
         try {
           const res = await fetch(url);
           const json = await res.json();
-          if (json.code !== 200 || !Array.isArray(json.data)) return 0;
+          if (!Array.isArray(json)) return 0;
 
-          json.data.forEach((it, idx) => {
-            const songId = it.id;
+          json.forEach((it, idx) => {
+            const songId = pickQueryParam(it.url, 'id') || `${kw}-${idx + 1}`;
             const uid = `netease-${songId}`;
             if (state.trackMap.has(uid)) return;
 
@@ -2948,14 +2981,14 @@
               keyword: kw,
 
               songid: songId,
-              title: it.song || '',
-              artist: it.singer || '',
-              album: it.album || '',
+              title: it.name || '',
+              artist: it.artist || '',
+              album: '',
 
-              cover: it.cover || null,
-              audioUrl: null,
+              cover: it.pic || null,
+              audioUrl: it.url || null,
               lrc: null,
-              lrcUrl: null,
+              lrcUrl: it.lrc || null,
 
               detailsLoaded: false,
               quality: null,
@@ -2965,8 +2998,9 @@
             state.searchResults.push(track);
             added++;
           });
-
-        } catch (e) { console.error('netease(vkeys)', e); }
+        } catch (e) {
+          console.error('netease(qijieya meting)', e);
+        }
         return added;
       }
 
@@ -3108,7 +3142,7 @@
         for (const s of enabled) {
           const limit = state.perSourceCurrentLimit[s] || state.perSourceLimit;
 
-          if (s === 'migu') tasks.push(searchMigu(kw, limit));
+          if (s === 'joox') tasks.push(searchJoox(kw, limit));
           if (s === 'netease') tasks.push(searchNetease(kw, state.perSourcePage.netease || 1, state.perSourceLimit));
           if (s === 'qq') tasks.push(searchQQ(kw, limit));
           if (s === 'kuwo') tasks.push(searchKuwo(kw, limit));
@@ -3138,50 +3172,97 @@
 
       // ===================== 各平台详情 =====================
 
-      async function fetchMiguDetails(track) {
-        const num = track.requestNum || state.perSourceCurrentLimit.migu || state.perSourceLimit || 20;
-        const url = `https://api.xcvts.cn/api/music/migu?gm=${encodeURIComponent(track.keyword)}&n=${encodeURIComponent(track.displayIndex || 1)}&num=${encodeURIComponent(num)}&type=json`;
+      async function fetchJooxDetails(track) {
+        const n = track.jooxIndex || track.displayIndex || 1;
+        const url = `https://apicx.asia/api/joox_music?msg=${encodeURIComponent(track.keyword)}&n=${encodeURIComponent(n)}&token=${encodeURIComponent(JOOX_TOKEN)}&br=${encodeURIComponent(JOOX_BR)}`;
         const res = await fetch(url);
         const j = await res.json();
-        if (j.code !== 200) throw new Error('migu detail');
+        if (!j || j.code !== 200 || !j.data) throw new Error('joox detail failed');
 
+        const d = j.data;
+        const playLinks = d['播放链接'] || {};
+
+        async function probeJooxAudioUrl(u) {
+          if (!u) return false;
+
+          async function request(method, extraOptions) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 3000);
+            try {
+              const res = await fetch(u, Object.assign({
+                method,
+                cache: 'no-store',
+                redirect: 'follow',
+                signal: controller.signal
+              }, extraOptions || {}));
+              return res && (res.ok || res.status === 206 || (res.status >= 200 && res.status < 400));
+            } finally {
+              clearTimeout(timer);
+            }
+          }
+
+          try {
+            if (await request('HEAD')) return true;
+          } catch (e) {
+            // Some music CDN links do not allow HEAD. Try a tiny ranged GET below.
+          }
+
+          try {
+            return await request('GET', { headers: { Range: 'bytes=0-0' } });
+          } catch (e) {
+            return false;
+          }
+        }
+
+        async function pickJooxPlayUrl(links) {
+          const order = ['Atmos全景声', '无损FLAC', 'Hi-Res无损', '母带无损', 'OGG 320', 'MP3 320', 'AAC 192', 'OGG 192', 'MP3 128', 'AAC 96', 'AAC 48'];
+          for (const name of order) {
+            const u = links[name];
+            if (!u) continue;
+            if (!(await probeJooxAudioUrl(u))) continue;
+            if (/母带|无损|flac|hi-res|atmos/i.test(name) || /\.flac(?:\?|$)/i.test(u)) {
+              return { url: u, tag: 'lossless', label: 'LOSSLESS', text: name };
+            }
+            const m = name.match(/(\d+)$/);
+            if (m) return { url: u, tag: m[1] + 'k', label: m[1] + 'K', text: name };
+            return { url: u, tag: null, label: null, text: name };
+          }
+          return { url: null, tag: null, label: null, text: null };
+        }
+
+        const best = await pickJooxPlayUrl(playLinks);
         Object.assign(track, {
-          title: j.title || track.title,
-          artist: j.singer || track.artist,
-          cover: j.cover || track.cover,
-          audioUrl: j.music_url || track.audioUrl,
-          lrcUrl: j.lrc_url || track.lrcUrl,
-          pageUrl: j.link || track.pageUrl,
+          title: d['歌曲名称'] || track.title,
+          artist: d['歌手'] || track.artist,
+          album: d['专辑'] || track.album,
+          songid: d['歌曲ID'] || track.songid,
+          songMid: d.songmid || track.songMid,
+          audioUrl: best.url || track.audioUrl,
+          lrc: d['歌词内容'] || track.lrc || null,
+          lrcUrl: null,
+          jooxQualityText: best.text || track.jooxQualityText || null,
           detailsLoaded: true
         });
 
-        if (track.audioUrl) {
+        if (best.tag && best.label) {
+          track.quality = best.tag;
+          track.qualityLabel = best.label;
+        } else if (track.audioUrl) {
           const q = inferQualityFromUrl(track.audioUrl);
           track.quality = q.tag;
           track.qualityLabel = q.label;
-        }
-
-        if (track.lrcUrl && !track.lrc) {
-          try {
-            const r = await fetch(track.lrcUrl);
-            track.lrc = await r.text();
-          } catch (e) { }
         }
       }
 
       async function fetchNeteaseDetails(track) {
-        const metingApi = `https://api.qijieya.cn/meting/?type=song&id=${encodeURIComponent(track.songid)}`;
-        const res = await fetch(metingApi);
-        const j = await res.json();
-        if (!Array.isArray(j) || !j.length) throw new Error('netease meting detail empty');
-
-        const d = j[0] || {};
-        Object.assign(track, {
-          title: d.name || track.title,
-          artist: d.artist || track.artist,
-          audioUrl: d.url || track.audioUrl,
-          cover: d.pic || track.cover
-        });
+        if (track.songid) {
+          if (!track.audioUrl) {
+            track.audioUrl = `https://api.qijieya.cn/meting/?server=netease&type=url&id=${encodeURIComponent(track.songid)}`;
+          }
+          if (!track.lrcUrl) {
+            track.lrcUrl = `https://api.qijieya.cn/meting/?server=netease&type=lrc&id=${encodeURIComponent(track.songid)}`;
+          }
+        }
 
         if (track.audioUrl) {
           const q = inferQualityFromUrl(track.audioUrl);
@@ -3189,16 +3270,27 @@
           track.qualityLabel = q.label;
         }
 
-        const lyricApi = `https://api.vkeys.cn/v2/music/netease/lyric?id=${encodeURIComponent(track.songid)}`;
-        try {
-          const lr = await fetch(lyricApi);
-          const lj = await lr.json();
-          if (lj && lj.code === 200 && lj.data) {
-            track.lrc = lj.data.lrc || track.lrc || null;
-            track.lrcUrl = track.lrcUrl || lyricApi;
+        if (!track.lrc && track.lrcUrl) {
+          try {
+            const lr = await fetch(track.lrcUrl);
+            const contentType = (lr.headers.get('content-type') || '').toLowerCase();
+            if (contentType.includes('json')) {
+              const lj = await lr.json();
+              track.lrc =
+                (typeof lj === 'string' ? lj : null) ||
+                lj?.lrc ||
+                lj?.lyric ||
+                lj?.data?.lrc ||
+                lj?.data?.lyric ||
+                (typeof lj?.data === 'string' ? lj.data : null) ||
+                track.lrc ||
+                null;
+            } else {
+              track.lrc = await lr.text();
+            }
+          } catch (e) {
+            console.warn('netease(qijieya meting) lyric fetch failed', e);
           }
-        } catch (e) {
-          console.warn('netease(vkeys) lyric fetch failed', e);
         }
 
         track.detailsLoaded = true;
@@ -3312,7 +3404,7 @@
         console.log(`[DEBUG] Loading details for: ${track.title} from ${track.source}`);
 
         try {
-          if (track.source === 'migu') await fetchMiguDetails(track);
+          if (track.source === 'joox') await fetchJooxDetails(track);
           else if (track.source === 'netease') await fetchNeteaseDetails(track);
           else if (track.source === 'kuwo') await fetchKuwoDetails(track);
           else await fetchQQDetails(track);
@@ -3695,7 +3787,7 @@
           list.forEach((track, i) => {
             const item = document.createElement('div');
             item.className = 'search-mini-item ripple-target';
-            const sourceKey = track.source === 'migu' ? 'sourceMigu' :
+            const sourceKey = track.source === 'joox' ? 'sourceJoox' :
               track.source === 'netease' ? 'sourceNetease' :
                 track.source === 'qq' ? 'sourceQQ' : 'sourceKuwo';
 
@@ -3817,7 +3909,7 @@
           src.className = 'mini-source';
           const dot = document.createElement('span');
           dot.className = 'source-dot ' + track.source;
-          const key = track.source === 'migu' ? 'sourceMigu' :
+          const key = track.source === 'joox' ? 'sourceJoox' :
             track.source === 'netease' ? 'sourceNetease' :
               track.source === 'qq' ? 'sourceQQ' : 'sourceKuwo';
           const txt = document.createElement('span');
