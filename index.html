@@ -3118,15 +3118,19 @@
       }
 
       async function searchKuwo(kw, limit) {
-        const url = `https://kw-api.cenguigui.cn/?name=${encodeURIComponent(kw)}&page=1&limit=${encodeURIComponent(limit)}`;
+        const url = `https://oiapi.net/api/Kuwo?msg=${encodeURIComponent(kw)}&page=1&limit=${encodeURIComponent(limit)}`;
         let added = 0;
         try {
           const res = await fetch(url);
           const json = await res.json();
-          if (json.code !== 200 || !Array.isArray(json.data)) return 0;
+          const data = Array.isArray(json?.data) ? json.data : [];
+          if (!data.length) return 0;
 
-          json.data.forEach((it, idx) => {
-            const uid = `kuwo-${it.rid}`;
+          data.forEach((it, idx) => {
+            const rid = (it.rid ?? '').toString();
+            if (!rid) return;
+
+            const uid = `kuwo-${rid}`;
             if (state.trackMap.has(uid)) return;
 
             const track = {
@@ -3134,13 +3138,13 @@
               source: 'kuwo',
               displayIndex: idx + 1,
               keyword: kw,
-              songid: it.rid,
+              songid: rid,
 
-              title: it.name || '',
-              artist: it.artist || '',
+              title: it.song || '',
+              artist: it.singer || '',
               album: it.album || '',
 
-              cover: it.pic || null,
+              cover: it.picture || null,
               audioUrl: null,
               lrc: null,
               lrcUrl: null,
@@ -3393,24 +3397,30 @@
       }
 
       async function fetchKuwoDetails(track) {
-        const api = `https://kw-api.cenguigui.cn/?id=${encodeURIComponent(track.songid)}&type=song&level=zp&format=json`;
+        const n = track.displayIndex || 1;
+        const api = `https://oiapi.net/api/Kuwo?msg=${encodeURIComponent(track.keyword)}&n=${encodeURIComponent(n)}&br=1`;
         const res = await fetch(api);
         const j = await res.json();
-        if (!j || j.code !== 200 || !j.data) throw new Error('kuwo kw-api detail failed');
+        if (!j || !j.data || Array.isArray(j.data)) throw new Error('kuwo OIAPI detail failed');
 
         const d = j.data;
         Object.assign(track, {
-          title: d.name || track.title,
-          artist: d.artist || track.artist,
+          title: d.song || track.title,
+          artist: d.singer || track.artist,
           album: d.album || track.album,
-          cover: d.pic || track.cover,
+          cover: d.picture || track.cover,
+          songid: (d.rid ?? track.songid),
           audioUrl: d.url || track.audioUrl,
-          lrc: d.lyric || track.lrc || null,
+          lrc: d.lyric || d.lrc || d.lyrics || track.lrc || null,
           lrcUrl: null,
           detailsLoaded: true
         });
 
-        if (track.audioUrl) {
+        const qualityText = `${d.level || ''} ${d.format || ''}`.toLowerCase();
+        if (/lossless|无损|flac|wav|ape|alac|aiff|zp|sq/.test(qualityText)) {
+          track.quality = 'lossless';
+          track.qualityLabel = 'LOSSLESS';
+        } else if (track.audioUrl) {
           const q = inferQualityFromUrl(track.audioUrl);
           track.quality = q.tag;
           track.qualityLabel = q.label;
